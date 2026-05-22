@@ -1,0 +1,35 @@
+yamlname: Fetch BBC News
+
+on:
+  schedule:
+    - cron: '0,30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch BBC RSS
+        run: |
+          curl -s "https://feeds.bbci.co.uk/news/rss.xml" | python3 -c "
+          import sys, json, xml.etree.ElementTree as ET
+          tree = ET.parse(sys.stdin)
+          root = tree.getroot()
+          channel = root.find('channel')
+          items = []
+          for item in channel.findall('item')[:3]:
+              title = item.find('title').text
+              link = item.find('link').text
+              items.append({'title': title, 'link': link})
+          print(json.dumps(items))
+          " > news.json
+
+      - name: Commit news.json
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add news.json
+          git diff --staged --quiet || git commit -m "Update BBC news"
+          git push
